@@ -123,6 +123,9 @@
 </div>
 
 <script>
+  // ✅ Cloudflare Worker proxy — bypasses CORS
+  const PROXY = 'https://misty-tooth-a3ea.shaikhjunaid5000.workers.dev/proxy';
+
   let gifFile = null, faceFile = null, resultUrl = null;
   document.getElementById('api-key').value = 'r8_Ji8TxFVEWJGPehg7uzcuqgetd8EB76R3228jd';
 
@@ -132,21 +135,6 @@
     return new Promise((res, rej) => {
       const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
     });
-  }
-
-  async function uploadFile(file, apiKey) {
-    const buf = await file.arrayBuffer();
-    const res = await fetch('https://api.replicate.com/v1/files', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Token ' + apiKey,
-        'Content-Type': file.type || 'application/octet-stream'
-      },
-      body: buf
-    });
-    if (!res.ok) throw new Error('file_upload_error');
-    const d = await res.json();
-    return d.urls?.get || d.url;
   }
 
   function updateBtn() {
@@ -215,6 +203,11 @@
     bar.style.display = 'none';
   }
 
+  async function proxyFetch(path, options) {
+    const url = PROXY + path;
+    return fetch(url, options);
+  }
+
   document.getElementById('swap-btn').addEventListener('click', async () => {
     const apiKey = document.getElementById('api-key').value.trim();
     if (!apiKey || !gifFile || !faceFile) return;
@@ -223,25 +216,16 @@
     document.getElementById('result-card').style.display = 'none';
 
     try {
-      let gifUrl, faceUrl;
+      // Convert files to base64
+      setStatus('loading', 'Preparing GIF…', 'Step 1 of 3');
+      const gifB64 = await toBase64(gifFile);
 
-      // Try uploading to Replicate file storage first
-      try {
-        setStatus('loading', 'Uploading GIF to cloud…', 'Step 1 of 3');
-        gifUrl = await uploadFile(gifFile, apiKey);
-        setStatus('loading', 'Uploading face photo…', 'Step 2 of 3');
-        faceUrl = await uploadFile(faceFile, apiKey);
-      } catch(e) {
-        // Fallback: use base64 data URIs directly
-        setStatus('loading', 'Preparing GIF…', 'Step 1 of 3 (base64 mode)');
-        gifUrl = await toBase64(gifFile);
-        setStatus('loading', 'Preparing face photo…', 'Step 2 of 3 (base64 mode)');
-        faceUrl = await toBase64(faceFile);
-      }
+      setStatus('loading', 'Preparing face photo…', 'Step 2 of 3');
+      const faceB64 = await toBase64(faceFile);
 
+      // Start prediction via proxy
       setStatus('loading', 'Sending to AI model…', 'Step 3 of 3');
-
-      const resp = await fetch('https://api.replicate.com/v1/predictions', {
+      const resp = await proxyFetch('/v1/predictions', {
         method: 'POST',
         headers: {
           'Authorization': 'Token ' + apiKey,
@@ -249,22 +233,26 @@
         },
         body: JSON.stringify({
           version: 'a07f252abbbd832009640b27f063ea52d87d7a23ce5e45625552e45a4de0dd37',
-          input: { target_video: gifUrl, source_face: faceUrl }
+          input: {
+            target_video: gifB64,
+            source_face: faceB64
+          }
         })
       });
 
       const pred = await resp.json();
       if (!resp.ok) throw new Error(pred.detail || 'API error ' + resp.status);
 
-      const pollUrl = `https://api.replicate.com/v1/predictions/${pred.id}`;
+      // Poll for result via proxy
       let elapsed = 0;
-
       for (let i = 0; i < 90; i++) {
         await new Promise(r => setTimeout(r, 3000));
         elapsed += 3;
         setStatus('loading', 'AI is swapping faces…', `${elapsed}s elapsed — please wait`);
 
-        const pr = await fetch(pollUrl, { headers: { 'Authorization': 'Token ' + apiKey } });
+        const pr = await proxyFetch('/v1/predictions/' + pred.id, {
+          headers: { 'Authorization': 'Token ' + apiKey }
+        });
         const pj = await pr.json();
 
         if (pj.status === 'succeeded') {
@@ -280,11 +268,7 @@
       throw new Error('Timed out — try a smaller GIF (under 500KB).');
 
     } catch (err) {
-      let msg = err.message;
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch')) {
-        msg = 'Network error. Check your internet connection and try again.';
-      }
-      setStatus('error', msg, '');
+      setStatus('error', err.message || 'Something went wrong. Please try again.', '');
     } finally {
       updateBtn();
     }
