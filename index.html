@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>GIF Face Swap</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #0f0f10; color: #f0efe8; min-height: 100vh; padding: 1.5rem 1rem 3rem; }
+  .app { max-width: 420px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 2rem; padding-top: 0.5rem; }
+  .header .logo { font-size: 28px; margin-bottom: 6px; }
+  .header h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; background: linear-gradient(135deg, #fff 40%, #888); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .header p { font-size: 13px; color: #666; margin-top: 4px; }
+  .card { background: #1a1a1c; border: 1px solid #2a2a2e; border-radius: 16px; padding: 1.25rem; margin-bottom: 12px; }
+  .step-label { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; background: #1d3a5c; color: #5aadff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-title { font-size: 15px; font-weight: 500; }
+  .step-size { font-size: 12px; color: #555; margin-left: auto; }
+  .upload-zone { border: 1.5px dashed #2e2e33; border-radius: 12px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; position: relative; overflow: hidden; transition: border-color 0.2s, background 0.2s; padding: 1rem; }
+  .upload-zone:hover, .upload-zone.drag { border-color: #5aadff; background: #161b22; }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; font-size: 0; }
+  .upload-icon-wrap { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .icon-gif { background: #1d3a5c; }
+  .icon-face { background: #1a3828; }
+  .upload-text { font-size: 14px; color: #aaa; font-weight: 500; }
+  .upload-hint { font-size: 11px; color: #555; }
+  .preview-wrap { min-height: 120px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .preview-wrap img { max-height: 130px; max-width: 85%; border-radius: 10px; object-fit: contain; border: 1px solid #2a2a2e; }
+  .remove-btn { position: absolute; top: -4px; right: 0; width: 24px; height: 24px; border-radius: 50%; background: #3a1a1a; color: #ff6b6b; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+  .file-name { font-size: 11px; color: #555; text-align: center; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .api-card { background: #141416; border: 1px solid #222226; border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 12px; }
+  .api-label { font-size: 12px; color: #555; margin-bottom: 8px; }
+  .api-row { display: flex; gap: 6px; }
+  .api-input { flex: 1; background: #1a1a1c; border: 1px solid #2a2a2e; border-radius: 10px; padding: 9px 12px; color: #f0efe8; font-family: 'DM Mono', monospace; font-size: 12px; outline: none; }
+  .api-input:focus { border-color: #5aadff; }
+  .show-btn { background: #1a1a1c; border: 1px solid #2a2a2e; border-radius: 10px; padding: 9px 12px; color: #888; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
+  .api-ready { font-size: 11px; color: #3d8f5f; margin-top: 6px; }
+  .status-bar { display: none; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 12px; font-size: 13px; margin-bottom: 12px; }
+  .status-bar.loading { display: flex; background: #1d3a5c; color: #5aadff; }
+  .status-bar.error { display: flex; background: #3a1a1a; color: #ff6b6b; }
+  .status-bar.success { display: flex; background: #1a3828; color: #4ecb7f; }
+  .status-row { display: flex; align-items: center; gap: 10px; }
+  .spinner { width: 15px; height: 15px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status-detail { font-size: 11px; opacity: 0.7; padding-left: 25px; }
+  .swap-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; background: linear-gradient(135deg, #1a6bbf, #0e4a8a); color: #fff; font-size: 16px; font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer; margin-bottom: 12px; transition: opacity 0.15s, transform 0.1s; box-shadow: 0 4px 20px rgba(90,173,255,0.15); }
+  .swap-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+  .swap-btn:not(:disabled):active { transform: scale(0.98); }
+  .result-card { display: none; flex-direction: column; align-items: center; gap: 12px; background: #1a1a1c; border: 1px solid #2a2a2e; border-radius: 16px; padding: 1.25rem; }
+  .result-title { font-size: 13px; font-weight: 500; color: #888; align-self: flex-start; }
+  .result-gif { width: 100%; max-height: 220px; object-fit: contain; border-radius: 12px; border: 1px solid #2a2a2e; }
+  .download-btn { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #2a2a2e; background: transparent; color: #f0efe8; font-size: 14px; font-family: 'DM Sans', sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .download-btn:hover { background: #222226; }
+  .tip { font-size: 11px; color: #444; text-align: center; margin-top: 1.5rem; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">🎭</div>
+    <h1>GIF Face Swap</h1>
+    <p>Swap any face in a GIF using AI</p>
+  </div>
+
+  <div class="card">
+    <div class="step-label">
+      <div class="step-num">1</div>
+      <span class="step-title">Upload GIF</span>
+      <span class="step-size" id="gif-size"></span>
+    </div>
+    <div class="upload-zone" id="gif-zone">
+      <input type="file" accept=".gif,image/gif" id="gif-input" />
+      <div class="upload-icon-wrap icon-gif">🎞️</div>
+      <span class="upload-text">Tap to choose a GIF</span>
+      <span class="upload-hint">Only .gif files supported</span>
+    </div>
+    <div class="file-name" id="gif-fname"></div>
+  </div>
+
+  <div class="card">
+    <div class="step-label">
+      <div class="step-num">2</div>
+      <span class="step-title">Upload Face Photo</span>
+      <span class="step-size" id="face-size"></span>
+    </div>
+    <div class="upload-zone" id="face-zone">
+      <input type="file" accept="image/png,image/jpeg,image/webp,image/jpg" id="face-input" />
+      <div class="upload-icon-wrap icon-face">👤</div>
+      <span class="upload-text">Tap to choose a photo</span>
+      <span class="upload-hint">Clear front-facing photo works best</span>
+    </div>
+    <div class="file-name" id="face-fname"></div>
+  </div>
+
+  <div class="api-card">
+    <div class="api-label">🔑 Replicate API key</div>
+    <div class="api-row">
+      <input class="api-input" type="password" id="api-key" autocomplete="off" spellcheck="false" />
+      <button class="show-btn" id="toggle-key">Show</button>
+    </div>
+    <div class="api-ready">✓ Key pre-filled and ready</div>
+  </div>
+
+  <div class="status-bar" id="status-bar">
+    <div class="status-row">
+      <div class="spinner" id="spinner"></div>
+      <span id="status-text"></span>
+    </div>
+    <div class="status-detail" id="status-detail"></div>
+  </div>
+
+  <button class="swap-btn" id="swap-btn" disabled>✦ Swap Face</button>
+
+  <div class="result-card" id="result-card">
+    <div class="result-title">Swapped result</div>
+    <img class="result-gif" id="result-img" src="" alt="Result" />
+    <button class="download-btn" id="download-btn">⬇ Download GIF</button>
+  </div>
+
+  <div class="tip">For best results: use a GIF with a clear face<br/>and a well-lit, front-facing photo</div>
+</div>
+
+<script>
+  let gifFile = null, faceFile = null, resultUrl = null;
+  document.getElementById('api-key').value = 'r8_Ji8TxFVEWJGPehg7uzcuqgetd8EB76R3228jd';
+
+  function fmt(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
+
+  function toBase64(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file);
+    });
+  }
+
+  async function uploadFile(file, apiKey) {
+    const buf = await file.arrayBuffer();
+    const res = await fetch('https://api.replicate.com/v1/files', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Token ' + apiKey,
+        'Content-Type': file.type || 'application/octet-stream'
+      },
+      body: buf
+    });
+    if (!res.ok) throw new Error('file_upload_error');
+    const d = await res.json();
+    return d.urls?.get || d.url;
+  }
+
+  function updateBtn() {
+    document.getElementById('swap-btn').disabled = !(gifFile && faceFile);
+  }
+
+  function showPreview(zoneId, file, isGif) {
+    const zone = document.getElementById(zoneId);
+    zone.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'preview-wrap';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    const rm = document.createElement('button');
+    rm.className = 'remove-btn';
+    rm.textContent = '×';
+    rm.onclick = () => {
+      if (isGif) { gifFile = null; document.getElementById('gif-size').textContent = ''; document.getElementById('gif-fname').textContent = ''; }
+      else { faceFile = null; document.getElementById('face-size').textContent = ''; document.getElementById('face-fname').textContent = ''; }
+      resetZone(zoneId, isGif); updateBtn();
+    };
+    wrap.appendChild(img); wrap.appendChild(rm); zone.appendChild(wrap);
+  }
+
+  function resetZone(zoneId, isGif) {
+    const zone = document.getElementById(zoneId);
+    const inputId = isGif ? 'gif-input' : 'face-input';
+    zone.innerHTML = `
+      <input type="file" accept="${isGif ? '.gif,image/gif' : 'image/png,image/jpeg,image/webp,image/jpg'}" id="${inputId}" />
+      <div class="upload-icon-wrap ${isGif ? 'icon-gif' : 'icon-face'}">${isGif ? '🎞️' : '👤'}</div>
+      <span class="upload-text">Tap to choose ${isGif ? 'a GIF' : 'a photo'}</span>
+      <span class="upload-hint">${isGif ? 'Only .gif files supported' : 'Clear front-facing photo works best'}</span>`;
+    document.getElementById(inputId).addEventListener('change', function() { if (this.files[0]) handleFile(this.files[0], isGif); });
+  }
+
+  function handleFile(file, isGif) {
+    if (isGif) gifFile = file; else faceFile = file;
+    document.getElementById(isGif ? 'gif-size' : 'face-size').textContent = fmt(file.size);
+    document.getElementById(isGif ? 'gif-fname' : 'face-fname').textContent = file.name;
+    showPreview(isGif ? 'gif-zone' : 'face-zone', file, isGif);
+    updateBtn();
+  }
+
+  document.getElementById('gif-input').addEventListener('change', function() { if (this.files[0]) handleFile(this.files[0], true); });
+  document.getElementById('face-input').addEventListener('change', function() { if (this.files[0]) handleFile(this.files[0], false); });
+
+  document.getElementById('toggle-key').addEventListener('click', () => {
+    const inp = document.getElementById('api-key');
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    document.getElementById('toggle-key').textContent = inp.type === 'password' ? 'Show' : 'Hide';
+  });
+
+  function setStatus(type, msg, detail) {
+    const bar = document.getElementById('status-bar');
+    bar.className = 'status-bar ' + type;
+    document.getElementById('status-text').textContent = msg;
+    document.getElementById('spinner').style.display = type === 'loading' ? 'block' : 'none';
+    const det = document.getElementById('status-detail');
+    det.textContent = detail || '';
+    det.style.display = detail ? 'block' : 'none';
+  }
+
+  function hideStatus() {
+    const bar = document.getElementById('status-bar');
+    bar.className = 'status-bar';
+    bar.style.display = 'none';
+  }
+
+  document.getElementById('swap-btn').addEventListener('click', async () => {
+    const apiKey = document.getElementById('api-key').value.trim();
+    if (!apiKey || !gifFile || !faceFile) return;
+
+    document.getElementById('swap-btn').disabled = true;
+    document.getElementById('result-card').style.display = 'none';
+
+    try {
+      let gifUrl, faceUrl;
+
+      // Try uploading to Replicate file storage first
+      try {
+        setStatus('loading', 'Uploading GIF to cloud…', 'Step 1 of 3');
+        gifUrl = await uploadFile(gifFile, apiKey);
+        setStatus('loading', 'Uploading face photo…', 'Step 2 of 3');
+        faceUrl = await uploadFile(faceFile, apiKey);
+      } catch(e) {
+        // Fallback: use base64 data URIs directly
+        setStatus('loading', 'Preparing GIF…', 'Step 1 of 3 (base64 mode)');
+        gifUrl = await toBase64(gifFile);
+        setStatus('loading', 'Preparing face photo…', 'Step 2 of 3 (base64 mode)');
+        faceUrl = await toBase64(faceFile);
+      }
+
+      setStatus('loading', 'Sending to AI model…', 'Step 3 of 3');
+
+      const resp = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Token ' + apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          version: 'a07f252abbbd832009640b27f063ea52d87d7a23ce5e45625552e45a4de0dd37',
+          input: { target_video: gifUrl, source_face: faceUrl }
+        })
+      });
+
+      const pred = await resp.json();
+      if (!resp.ok) throw new Error(pred.detail || 'API error ' + resp.status);
+
+      const pollUrl = `https://api.replicate.com/v1/predictions/${pred.id}`;
+      let elapsed = 0;
+
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        elapsed += 3;
+        setStatus('loading', 'AI is swapping faces…', `${elapsed}s elapsed — please wait`);
+
+        const pr = await fetch(pollUrl, { headers: { 'Authorization': 'Token ' + apiKey } });
+        const pj = await pr.json();
+
+        if (pj.status === 'succeeded') {
+          resultUrl = Array.isArray(pj.output) ? pj.output[0] : pj.output;
+          document.getElementById('result-img').src = resultUrl;
+          document.getElementById('result-card').style.display = 'flex';
+          setStatus('success', 'Face swap complete! 🎉', '');
+          setTimeout(hideStatus, 4000);
+          return;
+        }
+        if (pj.status === 'failed') throw new Error('Model failed: ' + (pj.error || 'Try a clearer GIF with a visible face.'));
+      }
+      throw new Error('Timed out — try a smaller GIF (under 500KB).');
+
+    } catch (err) {
+      let msg = err.message;
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch')) {
+        msg = 'Network error. Check your internet connection and try again.';
+      }
+      setStatus('error', msg, '');
+    } finally {
+      updateBtn();
+    }
+  });
+
+  document.getElementById('download-btn').addEventListener('click', () => {
+    if (!resultUrl) return;
+    const a = document.createElement('a'); a.href = resultUrl; a.download = 'face-swapped.gif'; a.click();
+  });
+</script>
+</body>
+</html>
