@@ -113,6 +113,9 @@
 
 <script>
   const PROXY = 'https://misty-tooth-a3ea.shaikhjunaid5000.workers.dev/proxy';
+  // Latest model version as of April 2026
+  const MODEL_VERSION = '11b6bf0f4e14d808f655e87e5448233cceff10a45f659d71539cafb7163b2e84';
+
   let gifFile = null, faceFile = null, resultUrl = null;
 
   function fmt(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
@@ -200,8 +203,11 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          version: 'a07f252abbbd832009640b27f063ea52d87d7a23ce5e45625552e45a4de0dd37',
-          input: { target_video: gifB64, source_face: faceB64 }
+          version: MODEL_VERSION,
+          input: {
+            target_video: gifB64,
+            source_face: faceB64
+          }
         })
       });
 
